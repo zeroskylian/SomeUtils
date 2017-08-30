@@ -10,6 +10,9 @@
 @import MapKit;
 @import Photos;
 @import UIKit;
+@import Contacts;
+@import AddressBook;
+@import AVFoundation;
 
 static GetAuthorizationTool *_tool = nil;
 @interface GetAuthorizationTool ()
@@ -43,10 +46,15 @@ static GetAuthorizationTool *_tool = nil;
         case AuthorizationTypePhotoLibrary:
             return [self getPhotoLibraryAuthorization];
             break;
+        case AuthorizationTypeRecord:
+            return [self getRecordAuthorization];
+        case AuthorizationTypeAddressBook:
+            return [self getAddressBookAuthorization];
         default:
             break;
     }
 }
+#pragma mark - get authorization
 -(BOOL)getLocationAuthorization
 {
     if ([CLLocationManager locationServicesEnabled] && ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedWhenInUse || [CLLocationManager authorizationStatus] == kCLAuthorizationStatusNotDetermined || [CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways)) {
@@ -93,12 +101,70 @@ static GetAuthorizationTool *_tool = nil;
             }
         }];
         return false;
-    }
-    else{
+    }else{
         return true;
     }
     return NO;
     
+}
+-(BOOL)getAddressBookAuthorization
+{
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_9_0
+    CNAuthorizationStatus cnAuthStatus = [CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts];
+    if (cnAuthStatus == CNAuthorizationStatusNotDetermined) {
+        CNContactStore *store = [[CNContactStore alloc] init];
+        [store requestAccessForEntityType:CNEntityTypeContacts completionHandler:^(BOOL granted, NSError *error) {
+            if (!granted) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self getAddressBookAuthorization];
+                });
+            }
+        }];
+        return false;
+    } else if (cnAuthStatus == CNAuthorizationStatusRestricted || cnAuthStatus == CNAuthorizationStatusDenied) {
+        return  false;
+    } else {
+        return true;
+    }
+#else
+    ABAddressBookRef addressBook = ABAddressBookCreate();
+    ABAuthorizationStatus authStatus = ABAddressBookGetAuthorizationStatus();
+    if (authStatus == kABAuthorizationStatusNotDetermined) {
+        ABAddressBookRequestAccessWithCompletion(addressBook, ^(bool granted, CFErrorRef error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!granted) {
+                  [self getAddressBookAuthorization];
+                }
+            });
+        });
+        return false;
+    }else if( authStatus == kABAuthorizationStatusRestricted ||authStatus == kABAuthorizationStatusDenied){
+        [self initAlertTitleUseType:(AuthorizationTypeAddressBook)];
+        return false;
+    }else {
+        return true;
+    }
+#endif
+}
+-(BOOL)getRecordAuthorization
+{
+    AVAudioSessionRecordPermission permissionStatus = [[AVAudioSession sharedInstance] recordPermission];
+    
+    if (permissionStatus == AVAudioSessionRecordPermissionUndetermined) {
+        [[AVAudioSession sharedInstance] requestRecordPermission:^(BOOL granted) {
+            if (!granted) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self getRecordAuthorization];
+                });
+            }
+        }];
+        return false;
+    } else if (permissionStatus == AVAudioSessionRecordPermissionDenied) {
+        [self initAlertTitleUseType:(AuthorizationTypeRecord)];
+        return false;
+    } else {
+        return true;
+    }
 }
 
 -(void)initAlertTitleUseType:(AuthorizationType)type
@@ -118,6 +184,15 @@ static GetAuthorizationTool *_tool = nil;
         case AuthorizationTypeCamera:
         {
             con = [UIAlertController alertControllerWithTitle:@"相机不可用" message:@"请前往设置打开相机权限" preferredStyle:UIAlertControllerStyleAlert];
+        }
+        case AuthorizationTypeRecord:
+        {
+            con = [UIAlertController alertControllerWithTitle:@"麦克风不可用" message:@"请前往设置打开麦克风权限" preferredStyle:UIAlertControllerStyleAlert];
+        }
+            break;
+        case AuthorizationTypeAddressBook:
+        {
+             con = [UIAlertController alertControllerWithTitle:@"通讯录不可用" message:@"请前往设置打开通讯录权限" preferredStyle:UIAlertControllerStyleAlert];
         }
             break;
         default:

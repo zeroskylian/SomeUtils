@@ -8,10 +8,18 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM(NSUInteger, AuthorizationType) {
+typedef NS_ENUM(NSInteger, AuthorizationType) {
+    /// 位置
     AuthorizationTypeLocation = 0,
+    /// 相机
     AuthorizationTypeCamera = 1,
-    AuthorizationTypePhotoLibrary = 2
+    /// 相册
+    AuthorizationTypePhotoLibrary = 2,
+    /// 麦克风
+    AuthorizationTypeRecord = 3,
+    /// 通讯录
+    AuthorizationTypeAddressBook = 4,
+    ///
 };
 
 @interface GetAuthorizationTool : NSObject
